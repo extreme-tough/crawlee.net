@@ -1,13 +1,13 @@
-&lt;Project Sdk="Microsoft.NET.Sdk"&gt;
+<Project Sdk="Microsoft.NET.Sdk">
 
-  &lt;PropertyGroup&gt;
-    &lt;OutputType&gt;Exe&lt;/OutputType&gt;
-    &lt;TargetFramework&gt;net8.0&lt;/TargetFramework&gt;
-    &lt;Nullable&gt;enable&lt;/Nullable&gt;
-  &lt;/PropertyGroup&gt;
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
 
-  &lt;ItemGroup&gt;
-    &lt;ProjectReference Include="..\..\src\Crawlee.NET\Crawlee.NET.csproj" /&gt;
-  &lt;/ItemGroup&gt;
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Crawlee.NET\Crawlee.NET.csproj" />
+  </ItemGroup>
 
-&lt;/Project&gt;
+</Project>

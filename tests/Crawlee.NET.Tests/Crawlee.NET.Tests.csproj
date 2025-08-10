@@ -1,21 +1,21 @@
-&lt;Project Sdk="Microsoft.NET.Sdk"&gt;
+<Project Sdk="Microsoft.NET.Sdk">
 
-  &lt;PropertyGroup&gt;
-    &lt;TargetFramework&gt;net8.0&lt;/TargetFramework&gt;
-    &lt;Nullable&gt;enable&lt;/Nullable&gt;
-    &lt;IsPackable&gt;false&lt;/IsPackable&gt;
-  &lt;/PropertyGroup&gt;
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
 
-  &lt;ItemGroup&gt;
-    &lt;PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0" /&gt;
-    &lt;PackageReference Include="xunit" Version="2.4.2" /&gt;
-    &lt;PackageReference Include="xunit.runner.visualstudio" Version="2.4.3" /&gt;
-    &lt;PackageReference Include="coverlet.collector" Version="6.0.0" /&gt;
-    &lt;PackageReference Include="Moq" Version="4.20.69" /&gt;
-  &lt;/ItemGroup&gt;
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0" />
+    <PackageReference Include="xunit" Version="2.4.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3" />
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Moq" Version="4.20.69" />
+  </ItemGroup>
 
-  &lt;ItemGroup&gt;
-    &lt;ProjectReference Include="..\..\src\Crawlee.NET\Crawlee.NET.csproj" /&gt;
-  &lt;/ItemGroup&gt;
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Crawlee.NET\Crawlee.NET.csproj" />
+  </ItemGroup>
 
-&lt;/Project&gt;
+</Project>
