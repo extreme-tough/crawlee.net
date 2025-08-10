@@ -7,12 +7,12 @@ namespace Crawlee.NET.Queue
     public interface IRequestQueue
     {
         Task AddRequest(Request request);
-        Task AddRequests(IEnumerable&lt;Request&gt; requests);
-        Task&lt;Request?&gt; FetchNextRequest();
+        Task AddRequests(IEnumerable<Request> requests);
+        Task<Request?> FetchNextRequest();
         Task MarkRequestHandled(Request request);
         Task ReclaimRequest(Request request);
-        Task&lt;bool&gt; IsEmpty();
-        Task&lt;int&gt; GetTotalCount();
-        Task&lt;int&gt; GetHandledCount();
+        Task<bool> IsEmpty();
+        Task<int> GetTotalCount();
+        Task<int> GetHandledCount();
     }
 }

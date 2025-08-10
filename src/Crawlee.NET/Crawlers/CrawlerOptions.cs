@@ -8,7 +8,7 @@ namespace Crawlee.NET.Crawlers
         public int RequestDelayMilliseconds { get; set; } = 0;
         public int MaxRetries { get; set; } = 3;
         public int RequestTimeoutSeconds { get; set; } = 30;
-        public Dictionary&lt;string, string&gt; DefaultHeaders { get; set; } = new();
+        public Dictionary<string, string> DefaultHeaders { get; set; } = new();
         public bool IgnoreHttpsErrors { get; set; } = false;
         public string UserAgent { get; set; } = "Crawlee.NET/1.0";
         public bool UseSessionPool { get; set; } = true;

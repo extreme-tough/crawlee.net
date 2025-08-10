@@ -8,7 +8,7 @@ namespace Crawlee.NET.Storage
 {
     public class MemoryDataset : IDataset
     {
-        private readonly ConcurrentQueue&lt;string&gt; _data = new();
+        private readonly ConcurrentQueue<string> _data = new();
         
         public Task PushData(object data)
         {
@@ -17,7 +17,7 @@ namespace Crawlee.NET.Storage
             return Task.CompletedTask;
         }
         
-        public Task PushData(IEnumerable&lt;object&gt; data)
+        public Task PushData(IEnumerable<object> data)
         {
             foreach (var item in data)
             {
@@ -27,14 +27,14 @@ namespace Crawlee.NET.Storage
             return Task.CompletedTask;
         }
         
-        public Task&lt;IEnumerable&lt;T&gt;&gt; GetData&lt;T&gt;(int? limit = null, int offset = 0)
+        public Task<IEnumerable<T>> GetData<T>(int? limit = null, int offset = 0)
         {
             var items = _data.Skip(offset);
             if (limit.HasValue)
                 items = items.Take(limit.Value);
                 
-            var result = items.Select(json =&gt; JsonConvert.DeserializeObject&lt;T&gt;(json)!)
-                             .Where(item =&gt; item != null);
+            var result = items.Select(json => JsonConvert.DeserializeObject<T>(json)!)
+                             .Where(item => item != null);
             return Task.FromResult(result);
         }
         
@@ -44,7 +44,7 @@ namespace Crawlee.NET.Storage
             return Task.CompletedTask;
         }
         
-        public Task&lt;int&gt; GetItemCount()
+        public Task<int> GetItemCount()
         {
             return Task.FromResult(_data.Count);
         }

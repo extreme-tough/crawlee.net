@@ -9,10 +9,10 @@ namespace Crawlee.NET.Queue
 {
     public class MemoryRequestQueue : IRequestQueue
     {
-        private readonly ConcurrentDictionary&lt;string, Request&gt; _requests = new();
-        private readonly ConcurrentQueue&lt;string&gt; _pendingRequestIds = new();
-        private readonly HashSet&lt;string&gt; _handledRequestIds = new();
-        private readonly HashSet&lt;string&gt; _inProgressRequestIds = new();
+        private readonly ConcurrentDictionary<string, Request> _requests = new();
+        private readonly ConcurrentQueue<string> _pendingRequestIds = new();
+        private readonly HashSet<string> _handledRequestIds = new();
+        private readonly HashSet<string> _inProgressRequestIds = new();
         private readonly SemaphoreSlim _semaphore = new(1, 1);
         
         public async Task AddRequest(Request request)
@@ -26,7 +26,7 @@ namespace Crawlee.NET.Queue
             await Task.CompletedTask;
         }
         
-        public async Task AddRequests(IEnumerable&lt;Request&gt; requests)
+        public async Task AddRequests(IEnumerable<Request> requests)
         {
             foreach (var request in requests)
             {
@@ -34,7 +34,7 @@ namespace Crawlee.NET.Queue
             }
         }
         
-        public async Task&lt;Request?&gt; FetchNextRequest()
+        public async Task<Request?> FetchNextRequest()
         {
             await _semaphore.WaitAsync();
             try
@@ -87,19 +87,19 @@ namespace Crawlee.NET.Queue
             }
         }
         
-        public async Task&lt;bool&gt; IsEmpty()
+        public async Task<bool> IsEmpty()
         {
             await Task.CompletedTask;
             return _pendingRequestIds.IsEmpty && _inProgressRequestIds.Count == 0;
         }
         
-        public async Task&lt;int&gt; GetTotalCount()
+        public async Task<int> GetTotalCount()
         {
             await Task.CompletedTask;
             return _requests.Count + _handledRequestIds.Count;
         }
         
-        public async Task&lt;int&gt; GetHandledCount()
+        public async Task<int> GetHandledCount()
         {
             await Task.CompletedTask;
             return _handledRequestIds.Count;

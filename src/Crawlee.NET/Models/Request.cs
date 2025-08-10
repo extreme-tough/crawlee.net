@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Crawlee.NET.Models
@@ -7,9 +8,9 @@ namespace Crawlee.NET.Models
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Url { get; set; } = string.Empty;
         public string Method { get; set; } = "GET";
-        public Dictionary&lt;string, string&gt; Headers { get; set; } = new();
+        public Dictionary<string, string> Headers { get; set; } = new();
         public string? Body { get; set; }
-        public Dictionary&lt;string, object&gt; UserData { get; set; } = new();
+        public Dictionary<string, object> UserData { get; set; } = new();
         public int Priority { get; set; } = 0;
         public int RetryCount { get; set; } = 0;
         public int MaxRetries { get; set; } = 3;
@@ -19,7 +20,7 @@ namespace Crawlee.NET.Models
         
         public Request() { }
         
-        public Request(string url, Dictionary&lt;string, object&gt;? userData = null)
+        public Request(string url, Dictionary<string, object>? userData = null)
         {
             Url = url;
             if (userData != null)

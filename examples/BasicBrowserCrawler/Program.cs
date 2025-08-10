@@ -1,10 +1,11 @@
 using Crawlee.NET.Crawlers;
 using Crawlee.NET.Models;
 using Microsoft.Extensions.Logging;
+using System;
 
 // Setup logging
-using var loggerFactory = LoggerFactory.Create(builder =&gt; builder.AddConsole());
-var logger = loggerFactory.CreateLogger&lt;BrowserCrawler&gt;();
+using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+var logger = loggerFactory.CreateLogger<BrowserCrawler>();
 
 // Create browser crawler
 var crawler = new BrowserCrawler(new BrowserCrawlerOptions
@@ -16,7 +17,7 @@ var crawler = new BrowserCrawler(new BrowserCrawlerOptions
 }, logger);
 
 // Set up request handler
-await crawler.Run(async (context) =&gt;
+await crawler.Run(async (context) =>
 {
     Console.WriteLine($"Processing: {context.Request.Url}");
     

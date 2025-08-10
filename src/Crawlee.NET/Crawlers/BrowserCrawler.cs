@@ -15,7 +15,7 @@ namespace Crawlee.NET.Crawlers
     {
         public string BrowserType { get; set; } = "chromium"; // chromium, firefox, webkit
         public bool Headless { get; set; } = true;
-        public List&lt;string&gt; LaunchOptions { get; set; } = new();
+        public List<string> LaunchOptions { get; set; } = new();
         public int NavigationTimeoutSeconds { get; set; } = 30;
     }
 
@@ -25,15 +25,15 @@ namespace Crawlee.NET.Crawlers
         private readonly IRequestQueue _requestQueue;
         private readonly IDataset _dataset;
         private readonly IKeyValueStore _keyValueStore;
-        private readonly ILogger&lt;BrowserCrawler&gt;? _logger;
+        private readonly ILogger<BrowserCrawler>? _logger;
         private readonly SemaphoreSlim _concurrencySemaphore;
         
         private IPlaywright? _playwright;
         private IBrowser? _browser;
-        private Func&lt;BrowserCrawlingContext, Task&gt;? _requestHandler;
+        private Func<BrowserCrawlingContext, Task>? _requestHandler;
         private bool _isRunning;
         
-        public BrowserCrawler(BrowserCrawlerOptions? options = null, ILogger&lt;BrowserCrawler&gt;? logger = null)
+        public BrowserCrawler(BrowserCrawlerOptions? options = null, ILogger<BrowserCrawler>? logger = null)
         {
             _options = options ?? new BrowserCrawlerOptions();
             _requestQueue = new MemoryRequestQueue();
@@ -43,23 +43,23 @@ namespace Crawlee.NET.Crawlers
             _concurrencySemaphore = new SemaphoreSlim(_options.MaxConcurrency, _options.MaxConcurrency);
         }
         
-        public void Use(Func&lt;BrowserCrawlingContext, Task&gt; handler)
+        public void Use(Func<BrowserCrawlingContext, Task> handler)
         {
             _requestHandler = handler;
         }
         
         public async Task AddRequests(params string[] urls)
         {
-            var requests = urls.Select(url =&gt; new Request(url));
+            var requests = urls.Select(url => new Request(url));
             await _requestQueue.AddRequests(requests);
         }
         
-        public async Task AddRequests(IEnumerable&lt;Request&gt; requests)
+        public async Task AddRequests(IEnumerable<Request> requests)
         {
             await _requestQueue.AddRequests(requests);
         }
         
-        public async Task Run(Func&lt;BrowserCrawlingContext, Task&gt;? handler = null)
+        public async Task Run(Func<BrowserCrawlingContext, Task>? handler = null)
         {
             if (handler != null)
                 _requestHandler = handler;
@@ -70,15 +70,15 @@ namespace Crawlee.NET.Crawlers
             await InitializeBrowser();
             
             _isRunning = true;
-            var tasks = new List&lt;Task&gt;();
+            var tasks = new List<Task>();
             
             _logger?.LogInformation("Starting browser crawler with {MaxConcurrency} max concurrency", _options.MaxConcurrency);
             
             while (_isRunning)
             {
-                tasks.RemoveAll(t =&gt; t.IsCompleted);
+                tasks.RemoveAll(t => t.IsCompleted);
                 
-                while (tasks.Count &lt; _options.MaxConcurrency && !await _requestQueue.IsEmpty())
+                while (tasks.Count < _options.MaxConcurrency && !await _requestQueue.IsEmpty())
                 {
                     var request = await _requestQueue.FetchNextRequest();
                     if (request != null)
@@ -121,9 +121,9 @@ namespace Crawlee.NET.Crawlers
             
             _browser = _options.BrowserType.ToLower() switch
             {
-                "firefox" =&gt; await _playwright.Firefox.LaunchAsync(launchOptions),
-                "webkit" =&gt; await _playwright.Webkit.LaunchAsync(launchOptions),
-                _ =&gt; await _playwright.Chromium.LaunchAsync(launchOptions)
+                "firefox" => await _playwright.Firefox.LaunchAsync(launchOptions),
+                "webkit" => await _playwright.Webkit.LaunchAsync(launchOptions),
+                _ => await _playwright.Chromium.LaunchAsync(launchOptions)
             };
         }
         
@@ -134,17 +134,25 @@ namespace Crawlee.NET.Crawlers
             
             try
             {
-                if (_options.RequestDelayMilliseconds &gt; 0)
+                if (_options.RequestDelayMilliseconds > 0)
                 {
                     await Task.Delay(_options.RequestDelayMilliseconds);
                 }
                 
                 page = await _browser!.NewPageAsync();
-                await page.SetUserAgentAsync(_options.UserAgent);
+                // Replace this line (inside ProcessRequest):
+                // await page.SetUserAgentAsync(_options.UserAgent);
+
+                // With the following block to set the user agent via context options:
+                if (!string.IsNullOrEmpty(_options.UserAgent))
+                {
+                    await page.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { { "User-Agent", _options.UserAgent } });
+                }
+                // await page.SetUserAgentAsync(_options.UserAgent);
                 
                 foreach (var header in _options.DefaultHeaders)
                 {
-                    await page.SetExtraHTTPHeadersAsync(new Dictionary&lt;string, string&gt; { { header.Key, header.Value } });
+                    await page.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { { header.Key, header.Value } });
                 }
                 
                 var response = await page.GotoAsync(request.Url, new PageGotoOptions
@@ -163,7 +171,7 @@ namespace Crawlee.NET.Crawlers
             {
                 _logger?.LogError(ex, "Error processing request: {Url}", request.Url);
                 
-                if (request.RetryCount &lt; request.MaxRetries)
+                if (request.RetryCount < request.MaxRetries)
                 {
                     request.RetryCount++;
                     await Task.Delay(_options.RetryDelayMilliseconds);
@@ -209,7 +217,7 @@ namespace Crawlee.NET.Crawlers
         public IDataset Dataset { get; set; }
         public IKeyValueStore KeyValueStore { get; set; }
         public Session? Session { get; set; }
-        public Dictionary&lt;string, object&gt; State { get; set; } = new();
+        public Dictionary<string, object> State { get; set; } = new();
         
         public BrowserCrawlingContext(Request request, IPage page, IResponse? response, IDataset dataset, IKeyValueStore keyValueStore)
         {

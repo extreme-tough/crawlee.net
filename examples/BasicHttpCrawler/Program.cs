@@ -1,10 +1,12 @@
 using Crawlee.NET.Crawlers;
 using Crawlee.NET.Models;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Linq;
 
 // Setup logging
-using var loggerFactory = LoggerFactory.Create(builder =&gt; builder.AddConsole());
-var logger = loggerFactory.CreateLogger&lt;HttpCrawler&gt;();
+using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+var logger = loggerFactory.CreateLogger<HttpCrawler>();
 
 // Create crawler with options
 var crawler = new HttpCrawler(new HttpCrawlerOptions
@@ -16,7 +18,7 @@ var crawler = new HttpCrawler(new HttpCrawlerOptions
 }, logger);
 
 // Set up request handler
-await crawler.Run(async (context) =&gt;
+await crawler.Run(async (context) =>
 {
     var title = context.Response.Html?.QuerySelector("title")?.TextContent ?? "No title";
     var url = context.Request.Url;
@@ -39,9 +41,9 @@ await crawler.Run(async (context) =&gt;
         var links = context.Response.Html
             .QuerySelectorAll("a[href]")
             .Take(5) // Limit to 5 links per page
-            .Select(a =&gt; a.GetAttribute("href"))
-            .Where(href =&gt; !string.IsNullOrEmpty(href) && Uri.TryCreate(context.Request.Url, href, out _))
-            .Select(href =&gt; new Uri(new Uri(context.Request.Url), href).ToString());
+            .Select(a => a.GetAttribute("href"))
+            .Where(href => !string.IsNullOrEmpty(href) && Uri.TryCreate(context.Request.Url, href, out _))
+            .Select(href => new Uri(new Uri(context.Request.Url), href).ToString());
             
         await context.EnqueueLinks(links);
     }
@@ -57,5 +59,5 @@ await crawler.AddRequests(
 Console.WriteLine("Crawler finished successfully!");
 
 // Get final dataset
-var data = await crawler._dataset.GetData&lt;dynamic&gt;();
+var data = await crawler._dataset.GetData<dynamic>();
 Console.WriteLine($"Scraped {await crawler._dataset.GetItemCount()} items total");

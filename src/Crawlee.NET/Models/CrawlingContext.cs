@@ -1,4 +1,7 @@
 using Crawlee.NET.Storage;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Crawlee.NET.Models
 {
@@ -9,7 +12,7 @@ namespace Crawlee.NET.Models
         public IDataset Dataset { get; set; }
         public IKeyValueStore KeyValueStore { get; set; }
         public Session? Session { get; set; }
-        public Dictionary&lt;string, object&gt; State { get; set; } = new();
+        public Dictionary<string, object> State { get; set; } = new();
         
         public CrawlingContext(Request request, Response response, IDataset dataset, IKeyValueStore keyValueStore)
         {
@@ -19,9 +22,9 @@ namespace Crawlee.NET.Models
             KeyValueStore = keyValueStore;
         }
         
-        public async Task EnqueueLinks(IEnumerable&lt;string&gt; urls, Dictionary&lt;string, object&gt;? userData = null)
+        public async Task EnqueueLinks(IEnumerable<string> urls, Dictionary<string, object>? userData = null)
         {
-            var requests = urls.Select(url =&gt; new Request(url, userData));
+            var requests = urls.Select(url => new Request(url, userData));
             // This would be injected in a real implementation
             await Task.CompletedTask; // Placeholder
         }

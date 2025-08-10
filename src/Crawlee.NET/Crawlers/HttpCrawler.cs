@@ -26,14 +26,14 @@ namespace Crawlee.NET.Crawlers
         private readonly IDataset _dataset;
         private readonly IKeyValueStore _keyValueStore;
         private readonly HttpClient _httpClient;
-        private readonly ILogger&lt;HttpCrawler&gt;? _logger;
+        private readonly ILogger<HttpCrawler>? _logger;
         private readonly SemaphoreSlim _concurrencySemaphore;
         private readonly IBrowsingContext? _browsingContext;
         
-        private Func&lt;CrawlingContext, Task&gt;? _requestHandler;
+        private Func<CrawlingContext, Task>? _requestHandler;
         private bool _isRunning;
         
-        public HttpCrawler(HttpCrawlerOptions? options = null, ILogger&lt;HttpCrawler&gt;? logger = null)
+        public HttpCrawler(HttpCrawlerOptions? options = null, ILogger<HttpCrawler>? logger = null)
         {
             _options = options ?? new HttpCrawlerOptions();
             _requestQueue = new MemoryRequestQueue();
@@ -58,23 +58,23 @@ namespace Crawlee.NET.Crawlers
             }
         }
         
-        public void Use(Func&lt;CrawlingContext, Task&gt; handler)
+        public void Use(Func<CrawlingContext, Task> handler)
         {
             _requestHandler = handler;
         }
         
         public async Task AddRequests(params string[] urls)
         {
-            var requests = urls.Select(url =&gt; new Request(url));
+            var requests = urls.Select(url => new Request(url));
             await _requestQueue.AddRequests(requests);
         }
         
-        public async Task AddRequests(IEnumerable&lt;Request&gt; requests)
+        public async Task AddRequests(IEnumerable<Request> requests)
         {
             await _requestQueue.AddRequests(requests);
         }
         
-        public async Task Run(Func&lt;CrawlingContext, Task&gt;? handler = null)
+        public async Task Run(Func<CrawlingContext, Task>? handler = null)
         {
             if (handler != null)
                 _requestHandler = handler;
@@ -83,17 +83,17 @@ namespace Crawlee.NET.Crawlers
                 throw new InvalidOperationException("Request handler must be set before running the crawler");
                 
             _isRunning = true;
-            var tasks = new List&lt;Task&gt;();
+            var tasks = new List<Task>();
             
             _logger?.LogInformation("Starting HTTP crawler with {MaxConcurrency} max concurrency", _options.MaxConcurrency);
             
             while (_isRunning)
             {
                 // Remove completed tasks
-                tasks.RemoveAll(t =&gt; t.IsCompleted);
+                tasks.RemoveAll(t => t.IsCompleted);
                 
                 // Add new tasks if we have capacity
-                while (tasks.Count &lt; _options.MaxConcurrency && !await _requestQueue.IsEmpty())
+                while (tasks.Count < _options.MaxConcurrency && !await _requestQueue.IsEmpty())
                 {
                     var request = await _requestQueue.FetchNextRequest();
                     if (request != null)
@@ -133,7 +133,7 @@ namespace Crawlee.NET.Crawlers
             await _concurrencySemaphore.WaitAsync();
             try
             {
-                if (_options.RequestDelayMilliseconds &gt; 0)
+                if (_options.RequestDelayMilliseconds > 0)
                 {
                     await Task.Delay(_options.RequestDelayMilliseconds);
                 }
@@ -150,7 +150,7 @@ namespace Crawlee.NET.Crawlers
             {
                 _logger?.LogError(ex, "Error processing request: {Url}", request.Url);
                 
-                if (request.RetryCount &lt; request.MaxRetries)
+                if (request.RetryCount < request.MaxRetries)
                 {
                     request.RetryCount++;
                     await Task.Delay(_options.RetryDelayMilliseconds);
@@ -170,7 +170,7 @@ namespace Crawlee.NET.Crawlers
             }
         }
         
-        private async Task&lt;Response&gt; MakeRequest(Request request)
+        private async Task<Response> MakeRequest(Request request)
         {
             using var httpRequest = new HttpRequestMessage(new HttpMethod(request.Method), request.Url);
             
@@ -205,7 +205,7 @@ namespace Crawlee.NET.Crawlers
                 var contentType = httpResponse.Content.Headers.ContentType?.MediaType;
                 if (contentType?.Contains("text/html") == true)
                 {
-                    response.Html = await _browsingContext.OpenAsync(req =&gt; req.Content(body).Address(request.Url)) as IHtmlDocument;
+                    response.Html = await _browsingContext.OpenAsync(req => req.Content(body).Address(request.Url)) as IHtmlDocument;
                 }
             }
             

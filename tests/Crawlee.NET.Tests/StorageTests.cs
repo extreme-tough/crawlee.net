@@ -1,4 +1,6 @@
 using Crawlee.NET.Storage;
+using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Crawlee.NET.Tests
@@ -14,7 +16,7 @@ namespace Crawlee.NET.Tests
             
             // Act
             await dataset.PushData(testData);
-            var retrievedData = await dataset.GetData&lt;dynamic&gt;();
+            var retrievedData = await dataset.GetData<dynamic>();
             
             // Assert
             Assert.Single(retrievedData);
@@ -31,7 +33,7 @@ namespace Crawlee.NET.Tests
             
             // Act
             await store.SetValue(key, value);
-            var retrieved = await store.GetValue&lt;dynamic&gt;(key);
+            var retrieved = await store.GetValue<dynamic>(key);
             var hasKey = await store.HasKey(key);
             
             // Assert
@@ -44,12 +46,12 @@ namespace Crawlee.NET.Tests
         {
             // Arrange
             var dataset = new MemoryDataset();
-            var items = Enumerable.Range(1, 10).Select(i =&gt; new { Id = i });
+            var items = Enumerable.Range(1, 10).Select(i => new { Id = i });
             
             // Act
             await dataset.PushData(items);
-            var page1 = await dataset.GetData&lt;dynamic&gt;(limit: 3, offset: 0);
-            var page2 = await dataset.GetData&lt;dynamic&gt;(limit: 3, offset: 3);
+            var page1 = await dataset.GetData<dynamic>(limit: 3, offset: 0);
+            var page2 = await dataset.GetData<dynamic>(limit: 3, offset: 3);
             
             // Assert
             Assert.Equal(3, page1.Count());

@@ -1,5 +1,6 @@
 using Crawlee.NET.Models;
 using Crawlee.NET.Queue;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Crawlee.NET.Tests
