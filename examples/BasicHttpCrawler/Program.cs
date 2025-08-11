@@ -66,7 +66,7 @@ await crawler.Run(async (context) =>
             .QuerySelectorAll("a[href]")
             .Take(5) // Limit to 5 links per page
             .Select(a => a.GetAttribute("href"))
-            .Where(href => !string.IsNullOrEmpty(href) && Uri.TryCreate(context.Request.Url, href, out _))
+            .Where(href => !string.IsNullOrEmpty(href) && Uri.TryCreate(new Uri(context.Request.Url), href, out _))
             .Select(href => new Uri(new Uri(context.Request.Url), href).ToString());
             
         await context.EnqueueLinks(links, label: "DETAIL");
