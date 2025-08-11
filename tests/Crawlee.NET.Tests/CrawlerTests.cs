@@ -2,6 +2,7 @@ using Crawlee.NET.Crawlers;
 using Crawlee.NET.Models;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
