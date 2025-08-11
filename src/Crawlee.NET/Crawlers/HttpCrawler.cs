@@ -3,11 +3,16 @@ using AngleSharp.Html.Dom;
 using Crawlee.NET.Models;
 using Crawlee.NET.Queue;
 using Crawlee.NET.Storage;
+using Crawlee.NET.Utils;
 using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Extensions.Http;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,21 +22,32 @@ namespace Crawlee.NET.Crawlers
     {
         public bool ParseHtml { get; set; } = true;
         public bool FollowRedirects { get; set; } = true;
+        public bool ParseJson { get; set; } = true;
+        public List<string> AdditionalMimeTypes { get; set; } = new();
+        public bool PreNavigationHooks { get; set; } = true;
+        public bool PostNavigationHooks { get; set; } = true;
+        public Dictionary<string, string> SuggestResponseEncoding { get; set; } = new();
+        public bool ForceResponseEncoding { get; set; } = false;
     }
 
     public class HttpCrawler
     {
         private readonly HttpCrawlerOptions _options;
         private readonly IRequestQueue _requestQueue;
-        private readonly IDataset _dataset;
+        public readonly IDataset _dataset;
         private readonly IKeyValueStore _keyValueStore;
         private readonly HttpClient _httpClient;
         private readonly ILogger<HttpCrawler>? _logger;
-        private readonly SemaphoreSlim _concurrencySemaphore;
+        private readonly AutoscaledPool _autoscaledPool;
         private readonly IBrowsingContext? _browsingContext;
+        private readonly Statistics _statistics;
+        private readonly IAsyncPolicy<HttpResponseMessage> _retryPolicy;
         
         private Func<CrawlingContext, Task>? _requestHandler;
+        private Func<CrawlingContext, Exception, Task>? _failedRequestHandler;
         private bool _isRunning;
+        private int _processedRequests;
+        private DateTime _startTime;
         
         public HttpCrawler(HttpCrawlerOptions? options = null, ILogger<HttpCrawler>? logger = null)
         {
@@ -40,11 +56,32 @@ namespace Crawlee.NET.Crawlers
             _dataset = new MemoryDataset();
             _keyValueStore = new MemoryKeyValueStore();
             _logger = logger;
-            _concurrencySemaphore = new SemaphoreSlim(_options.MaxConcurrency, _options.MaxConcurrency);
+            _statistics = new Statistics();
+            
+            var poolOptions = new AutoscaledPoolOptions
+            {
+                MinConcurrency = _options.MinConcurrency,
+                MaxConcurrency = _options.MaxConcurrency,
+                DesiredConcurrency = Math.Min(_options.MaxConcurrency, 10)
+            };
+            _autoscaledPool = new AutoscaledPool(poolOptions, logger);
             
             _httpClient = new HttpClient();
             _httpClient.Timeout = TimeSpan.FromSeconds(_options.RequestTimeoutSeconds);
             _httpClient.DefaultRequestHeaders.Add("User-Agent", _options.UserAgent);
+            
+            // Setup retry policy with exponential backoff
+            _retryPolicy = Policy
+                .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
+                .Or<HttpRequestException>()
+                .WaitAndRetryAsync(
+                    _options.MaxRetries,
+                    retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)) + TimeSpan.FromMilliseconds(_options.RetryDelayMilliseconds),
+                    onRetry: (outcome, timespan, retryCount, context) =>
+                    {
+                        _logger?.LogWarning("Retry {RetryCount} for request after {Delay}ms", retryCount, timespan.TotalMilliseconds);
+                        _statistics.IncrementCounter("requestsRetries");
+                    });
             
             foreach (var header in _options.DefaultHeaders)
             {
@@ -61,6 +98,11 @@ namespace Crawlee.NET.Crawlers
         public void Use(Func<CrawlingContext, Task> handler)
         {
             _requestHandler = handler;
+        }
+        
+        public void FailedRequestHandler(Func<CrawlingContext, Exception, Task> handler)
+        {
+            _failedRequestHandler = handler;
         }
         
         public async Task AddRequests(params string[] urls)
@@ -83,54 +125,52 @@ namespace Crawlee.NET.Crawlers
                 throw new InvalidOperationException("Request handler must be set before running the crawler");
                 
             _isRunning = true;
-            var tasks = new List<Task>();
+            _startTime = DateTime.UtcNow;
+            _autoscaledPool.Start();
             
             _logger?.LogInformation("Starting HTTP crawler with {MaxConcurrency} max concurrency", _options.MaxConcurrency);
             
             while (_isRunning)
             {
-                // Remove completed tasks
-                tasks.RemoveAll(t => t.IsCompleted);
-                
-                // Add new tasks if we have capacity
-                while (tasks.Count < _options.MaxConcurrency && !await _requestQueue.IsEmpty())
+                if (_processedRequests >= _options.MaxRequestsPerCrawl)
                 {
-                    var request = await _requestQueue.FetchNextRequest();
-                    if (request != null)
-                    {
-                        tasks.Add(ProcessRequest(request));
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-                
-                // If no tasks are running and queue is empty, we're done
-                if (tasks.Count == 0 && await _requestQueue.IsEmpty())
-                {
+                    _logger?.LogInformation("Reached maximum requests limit: {MaxRequests}", _options.MaxRequestsPerCrawl);
                     break;
                 }
                 
-                // Wait a bit before checking again
-                if (tasks.Count == 0)
+                if (_options.MaxCrawlTime.HasValue && DateTime.UtcNow - _startTime > _options.MaxCrawlTime.Value)
                 {
-                    await Task.Delay(100);
+                    _logger?.LogInformation("Reached maximum crawl time: {MaxTime}", _options.MaxCrawlTime.Value);
+                    break;
+                }
+                
+                var request = await _requestQueue.FetchNextRequest();
+                if (request != null)
+                {
+                    await _autoscaledPool.AddTask(() => ProcessRequest(request));
                 }
                 else
                 {
-                    await Task.WhenAny(tasks);
+                    if (await _requestQueue.IsEmpty() && _autoscaledPool.RunningTasks == 0)
+                    {
+                        break;
+                    }
+                    await Task.Delay(100);
                 }
             }
             
-            // Wait for all remaining tasks to complete
-            await Task.WhenAll(tasks);
+            _autoscaledPool.Stop();
+            
+            var stats = _statistics.GetSnapshot();
             _logger?.LogInformation("HTTP crawler finished");
+            _logger?.LogInformation("Statistics: {RequestsFinished} finished, {RequestsFailed} failed, {AvgDuration}ms avg duration", 
+                stats.RequestsFinished, stats.RequestsFailed, stats.RequestAvgDurationMillis);
         }
         
         private async Task ProcessRequest(Request request)
         {
-            await _concurrencySemaphore.WaitAsync();
+            var stopwatch = Stopwatch.StartNew();
+            
             try
             {
                 if (_options.RequestDelayMilliseconds > 0)
@@ -139,16 +179,22 @@ namespace Crawlee.NET.Crawlers
                 }
                 
                 var response = await MakeRequest(request);
-                var context = new CrawlingContext(request, response, _dataset, _keyValueStore);
+                var context = new CrawlingContext(request, response, _dataset, _keyValueStore, _requestQueue, _logger);
                 
                 await _requestHandler!(context);
                 await _requestQueue.MarkRequestHandled(request);
+                
+                Interlocked.Increment(ref _processedRequests);
+                _statistics.IncrementCounter("requestsFinished");
+                _statistics.RecordRequestDuration(stopwatch.ElapsedMilliseconds);
                 
                 _logger?.LogDebug("Successfully processed request: {Url}", request.Url);
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error processing request: {Url}", request.Url);
+                request.PushErrorMessage(ex.Message);
+                _statistics.IncrementCounter("requestsFailed");
                 
                 if (request.RetryCount < request.MaxRetries)
                 {
@@ -162,16 +208,32 @@ namespace Crawlee.NET.Crawlers
                 {
                     await _requestQueue.MarkRequestHandled(request);
                     _logger?.LogWarning("Request failed after {MaxRetries} retries: {Url}", request.MaxRetries, request.Url);
+                    
+                    if (_failedRequestHandler != null)
+                    {
+                        try
+                        {
+                            var response = new Response { Request = request, StatusCode = System.Net.HttpStatusCode.InternalServerError };
+                            var context = new CrawlingContext(request, response, _dataset, _keyValueStore, _requestQueue, _logger);
+                            await _failedRequestHandler(context, ex);
+                        }
+                        catch (Exception handlerEx)
+                        {
+                            _logger?.LogError(handlerEx, "Error in failed request handler for: {Url}", request.Url);
+                        }
+                    }
                 }
             }
             finally
             {
-                _concurrencySemaphore.Release();
+                stopwatch.Stop();
             }
         }
         
         private async Task<Response> MakeRequest(Request request)
         {
+            var stopwatch = Stopwatch.StartNew();
+            
             using var httpRequest = new HttpRequestMessage(new HttpMethod(request.Method), request.Url);
             
             foreach (var header in request.Headers)
@@ -184,18 +246,31 @@ namespace Crawlee.NET.Crawlers
                 httpRequest.Content = new StringContent(request.Body);
             }
             
-            var httpResponse = await _httpClient.SendAsync(httpRequest);
+            var httpResponse = await _retryPolicy.ExecuteAsync(async () =>
+            {
+                return await _httpClient.SendAsync(httpRequest);
+            });
+            
             var body = await httpResponse.Content.ReadAsStringAsync();
+            stopwatch.Stop();
             
             var response = new Response
             {
                 StatusCode = httpResponse.StatusCode,
                 Body = body,
                 Url = request.Url,
-                Request = request
+                Request = request,
+                ResponseTime = stopwatch.Elapsed,
+                ContentType = httpResponse.Content.Headers.ContentType?.MediaType,
+                ContentLength = httpResponse.Content.Headers.ContentLength
             };
             
             foreach (var header in httpResponse.Headers)
+            {
+                response.Headers[header.Key] = string.Join(", ", header.Value);
+            }
+            
+            foreach (var header in httpResponse.Content.Headers)
             {
                 response.Headers[header.Key] = string.Join(", ", header.Value);
             }
@@ -209,8 +284,26 @@ namespace Crawlee.NET.Crawlers
                 }
             }
             
+            if (_options.ParseJson)
+            {
+                var contentType = httpResponse.Content.Headers.ContentType?.MediaType;
+                if (contentType?.Contains("application/json") == true || contentType?.Contains("text/json") == true)
+                {
+                    try
+                    {
+                        response.Json = JsonDocument.Parse(body);
+                    }
+                    catch (JsonException ex)
+                    {
+                        _logger?.LogWarning(ex, "Failed to parse JSON response from: {Url}", request.Url);
+                    }
+                }
+            }
+            
             return response;
         }
+        
+        public Statistics GetStatistics() => _statistics;
         
         public void Stop()
         {
@@ -220,7 +313,7 @@ namespace Crawlee.NET.Crawlers
         public void Dispose()
         {
             _httpClient?.Dispose();
-            _concurrencySemaphore?.Dispose();
+            _autoscaledPool?.Dispose();
         }
     }
 }
