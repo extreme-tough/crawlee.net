@@ -15,6 +15,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace Crawlee.NET.Crawlers
 {
@@ -28,6 +29,10 @@ namespace Crawlee.NET.Crawlers
         public bool PostNavigationHooks { get; set; } = true;
         public Dictionary<string, string> SuggestResponseEncoding { get; set; } = new();
         public bool ForceResponseEncoding { get; set; } = false;
+        public bool IgnoreSslErrors { get; set; } = false;
+        public List<Regex> BlockedUrls { get; set; } = new();
+        public int MaxResponseSize { get; set; } = 32 * 1024 * 1024; // 32MB
+        public bool StreamResponse { get; set; } = false;
     }
 
     public class HttpCrawler
@@ -42,6 +47,8 @@ namespace Crawlee.NET.Crawlers
         private readonly IBrowsingContext? _browsingContext;
         private readonly Statistics _statistics;
         private readonly IAsyncPolicy<HttpResponseMessage> _retryPolicy;
+        private readonly List<Func<CrawlingContext, Task>> _preNavigationHooks = new();
+        private readonly List<Func<CrawlingContext, Task>> _postNavigationHooks = new();
         
         private Func<CrawlingContext, Task>? _requestHandler;
         private Func<CrawlingContext, Exception, Task>? _failedRequestHandler;
@@ -66,9 +73,16 @@ namespace Crawlee.NET.Crawlers
             };
             _autoscaledPool = new AutoscaledPool(poolOptions, logger);
             
-            _httpClient = new HttpClient();
+            var handler = new HttpClientHandler();
+            if (_options.IgnoreSslErrors)
+            {
+                handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
+            }
+            
+            _httpClient = new HttpClient(handler);
             _httpClient.Timeout = TimeSpan.FromSeconds(_options.RequestTimeoutSeconds);
             _httpClient.DefaultRequestHeaders.Add("User-Agent", _options.UserAgent);
+            _httpClient.MaxResponseContentBufferSize = _options.MaxResponseSize;
             
             // Setup retry policy with exponential backoff
             _retryPolicy = Policy
@@ -93,6 +107,16 @@ namespace Crawlee.NET.Crawlers
                 var config = Configuration.Default;
                 _browsingContext = BrowsingContext.New(config);
             }
+        }
+        
+        public void AddPreNavigationHook(Func<CrawlingContext, Task> hook)
+        {
+            _preNavigationHooks.Add(hook);
+        }
+        
+        public void AddPostNavigationHook(Func<CrawlingContext, Task> hook)
+        {
+            _postNavigationHooks.Add(hook);
         }
         
         public void Use(Func<CrawlingContext, Task> handler)
@@ -147,6 +171,14 @@ namespace Crawlee.NET.Crawlers
                 var request = await _requestQueue.FetchNextRequest();
                 if (request != null)
                 {
+                    // Check if URL is blocked
+                    if (_options.BlockedUrls.Any(regex => regex.IsMatch(request.Url)))
+                    {
+                        _logger?.LogDebug("Skipping blocked URL: {Url}", request.Url);
+                        await _requestQueue.MarkRequestHandled(request);
+                        continue;
+                    }
+                    
                     await _autoscaledPool.AddTask(() => ProcessRequest(request));
                 }
                 else
@@ -170,6 +202,7 @@ namespace Crawlee.NET.Crawlers
         private async Task ProcessRequest(Request request)
         {
             var stopwatch = Stopwatch.StartNew();
+            request.State = RequestState.InProgress;
             
             try
             {
@@ -178,11 +211,27 @@ namespace Crawlee.NET.Crawlers
                     await Task.Delay(_options.RequestDelayMilliseconds);
                 }
                 
+                // Execute pre-navigation hooks
+                var tempResponse = new Response { Request = request };
+                var tempContext = new CrawlingContext(request, tempResponse, _dataset, _keyValueStore, _requestQueue, _logger);
+                
+                foreach (var hook in _preNavigationHooks)
+                {
+                    await hook(tempContext);
+                }
+                
                 var response = await MakeRequest(request);
                 var context = new CrawlingContext(request, response, _dataset, _keyValueStore, _requestQueue, _logger);
                 
+                // Execute post-navigation hooks
+                foreach (var hook in _postNavigationHooks)
+                {
+                    await hook(context);
+                }
+                
                 await _requestHandler!(context);
                 await _requestQueue.MarkRequestHandled(request);
+                request.State = RequestState.Handled;
                 
                 Interlocked.Increment(ref _processedRequests);
                 _statistics.IncrementCounter("requestsFinished");
@@ -194,11 +243,13 @@ namespace Crawlee.NET.Crawlers
             {
                 _logger?.LogError(ex, "Error processing request: {Url}", request.Url);
                 request.PushErrorMessage(ex.Message);
+                request.State = RequestState.Failed;
                 _statistics.IncrementCounter("requestsFailed");
                 
-                if (request.RetryCount < request.MaxRetries)
+                if (!request.NoRetry && request.RetryCount < request.MaxRetries)
                 {
                     request.RetryCount++;
+                    request.State = RequestState.Unprocessed;
                     await Task.Delay(_options.RetryDelayMilliseconds);
                     await _requestQueue.ReclaimRequest(request);
                     _logger?.LogInformation("Retrying request: {Url} (attempt {RetryCount}/{MaxRetries})", 
@@ -251,18 +302,32 @@ namespace Crawlee.NET.Crawlers
                 return await _httpClient.SendAsync(httpRequest);
             });
             
-            var body = await httpResponse.Content.ReadAsStringAsync();
+            var body = string.Empty;
+            byte[]? buffer = null;
+            
+            if (_options.StreamResponse)
+            {
+                buffer = await httpResponse.Content.ReadAsByteArrayAsync();
+                body = System.Text.Encoding.UTF8.GetString(buffer);
+            }
+            else
+            {
+                body = await httpResponse.Content.ReadAsStringAsync();
+            }
+            
             stopwatch.Stop();
             
             var response = new Response
             {
                 StatusCode = httpResponse.StatusCode,
                 Body = body,
+                Buffer = buffer,
                 Url = request.Url,
                 Request = request,
                 ResponseTime = stopwatch.Elapsed,
                 ContentType = httpResponse.Content.Headers.ContentType?.MediaType,
-                ContentLength = httpResponse.Content.Headers.ContentLength
+                ContentLength = httpResponse.Content.Headers.ContentLength,
+                Encoding = httpResponse.Content.Headers.ContentType?.CharSet
             };
             
             foreach (var header in httpResponse.Headers)

@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BasicBrowserCrawler", "exam
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Crawlee.NET.Tests", "tests\Crawlee.NET.Tests\Crawlee.NET.Tests.csproj", "{18955BEE-8FBF-4B24-86E2-00EBF7D9BCA5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvancedHttpCrawler", "examples\AdvancedHttpCrawler\AdvancedHttpCrawler.csproj", "{F1E2D3C4-B5A6-7890-CDEF-123456789ABC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,6 +34,10 @@ Global
 		{18955BEE-8FBF-4B24-86E2-00EBF7D9BCA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{18955BEE-8FBF-4B24-86E2-00EBF7D9BCA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{18955BEE-8FBF-4B24-86E2-00EBF7D9BCA5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F1E2D3C4-B5A6-7890-CDEF-123456789ABC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F1E2D3C4-B5A6-7890-CDEF-123456789ABC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F1E2D3C4-B5A6-7890-CDEF-123456789ABC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F1E2D3C4-B5A6-7890-CDEF-123456789ABC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

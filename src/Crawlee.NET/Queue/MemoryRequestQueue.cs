@@ -17,7 +17,7 @@ namespace Crawlee.NET.Queue
         
         public async Task AddRequest(Request request)
         {
-            var key = GetRequestKey(request);
+            var key = request.GetUniqueKey();
             if (_requests.ContainsKey(key) || _handledRequestIds.Contains(key))
                 return; // Duplicate request
                 
@@ -56,7 +56,7 @@ namespace Crawlee.NET.Queue
         
         public async Task MarkRequestHandled(Request request)
         {
-            var key = GetRequestKey(request);
+            var key = request.GetUniqueKey();
             await _semaphore.WaitAsync();
             try
             {
@@ -72,7 +72,7 @@ namespace Crawlee.NET.Queue
         
         public async Task ReclaimRequest(Request request)
         {
-            var key = GetRequestKey(request);
+            var key = request.GetUniqueKey();
             await _semaphore.WaitAsync();
             try
             {
@@ -103,11 +103,6 @@ namespace Crawlee.NET.Queue
         {
             await Task.CompletedTask;
             return _handledRequestIds.Count;
-        }
-        
-        private static string GetRequestKey(Request request)
-        {
-            return $"{request.Method}:{request.Url}";
         }
     }
 }

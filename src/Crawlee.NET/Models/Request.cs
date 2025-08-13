@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations;
 
 namespace Crawlee.NET.Models
 {
@@ -10,6 +11,7 @@ namespace Crawlee.NET.Models
         public string Id { get; set; } = Guid.NewGuid().ToString();
         
         [JsonPropertyName("url")]
+        [Required]
         public string Url { get; set; } = string.Empty;
         
         [JsonPropertyName("uniqueKey")]
@@ -60,6 +62,18 @@ namespace Crawlee.NET.Models
         [JsonPropertyName("errorMessages")]
         public List<string> ErrorMessages { get; set; } = new();
         
+        [JsonPropertyName("keepUrlFragment")]
+        public bool KeepUrlFragment { get; set; } = false;
+        
+        [JsonPropertyName("useExtendedUniqueKey")]
+        public bool UseExtendedUniqueKey { get; set; } = false;
+        
+        [JsonPropertyName("noRetry")]
+        public bool NoRetry { get; set; } = false;
+        
+        [JsonPropertyName("state")]
+        public RequestState State { get; set; } = RequestState.Unprocessed;
+        
         public Request() { }
         
         public Request(string url, Dictionary<string, object>? userData = null, string? uniqueKey = null)
@@ -74,5 +88,29 @@ namespace Crawlee.NET.Models
         {
             ErrorMessages.Add($"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}: {errorMessage}");
         }
+        
+        public string GetUniqueKey()
+        {
+            if (!string.IsNullOrEmpty(UniqueKey))
+                return UniqueKey;
+                
+            var uri = new Uri(Url);
+            var baseUrl = KeepUrlFragment ? uri.ToString() : $"{uri.Scheme}://{uri.Host}{uri.AbsolutePath}{uri.Query}";
+            
+            if (UseExtendedUniqueKey)
+            {
+                return $"{Method}:{baseUrl}:{System.Text.Json.JsonSerializer.Serialize(UserData)}";
+            }
+            
+            return $"{Method}:{baseUrl}";
+        }
+    }
+    
+    public enum RequestState
+    {
+        Unprocessed,
+        InProgress,
+        Handled,
+        Failed
     }
 }
